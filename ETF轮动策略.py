@@ -11,7 +11,8 @@ def initialize(context):
     g.lookback_window = 251 # 回看窗口
     g.target_num = 1  # 持仓数量
     g.stop_loss_pct = 0.02  # 止损比例
-    g.total_cash = 200000 # 实盘时固定资金，回测时全仓
+    # g.score_threshold = 1.6 , 在下行趋势的时候加这个条件
+    g.total_cash = 400000 # 实盘时固定资金，回测时全仓
     # 交易标的
     g.symbols = [
         '518880.SS',  # 黄金ETF
@@ -23,14 +24,10 @@ def initialize(context):
         '510880.SS',  # 上证红利ETF
         '513030.SS',  # 华安德国ETF
         '159857.SZ',  # 光伏ETF
-        '515050.SS',  # 5G通信ETF      
+        '515050.SS',  # 5G通信ETF  
         '162719.SZ',  # 石油LO
-        '159570.SZ',  ## 港股通创新药
-        '588080.SS',  ## #科创50ETF
-        '159363.SZ',  ## 人工智能ETF
-        '159851.SZ',  ## 金融科技ETF 
-        '510300.SS']  # 沪深300
-
+        '510300.SS',  # 沪深300
+        '159851.SZ']  # 金融科技
         
     # 状态变量
     g.positions = {}  # 当前持仓
@@ -70,7 +67,7 @@ def handle_data(context, data):
             del g.last_buy_prices[symbol]
             
     # 在指定时间点执行交易
-    log.info("###current_time=%s"%current_time)
+    # log.info("###current_time=%s"%current_time)
     if current_time in ['09:50']: 
         market_data = get_history(
             count=g.lookback_window,       # 回溯周期（全局变量）
@@ -84,7 +81,7 @@ def handle_data(context, data):
         if market_data is None or market_data.empty:
             return
         
-        log.info("###获取最近1分钟数据并替换最后一条")        
+        # log.info("###获取最近1分钟数据并替换最后一条")        
         # 获取最近1分钟数据并替换最后一条
         latest_data = get_history(count=1,frequency='1m',field='close',security_list=g.symbols,fq='pre',include=True)
         
@@ -92,11 +89,10 @@ def handle_data(context, data):
             market_data.iloc[-1] = latest_data.iloc[-1]
             # print("market_data 替换后:%s" % market_data)
             target_list = calculate_etf_scores(market_data)[:g.target_num]
-               
+            current_hold_size = len(holding_list)    
         
-        log.info("###执行卖出操作")
+        # log.info("###执行卖出操作")
         # 执行卖出操作
-        current_hold_size = len(holding_list) 
         for symbol in holding_list:
             if symbol not in g.symbols: continue # 标的隔离
             if symbol not in target_list:
@@ -106,7 +102,7 @@ def handle_data(context, data):
             if symbol in g.last_buy_prices:
                 del g.last_buy_prices[symbol]
                 
-        log.info("###执行买入操作")       
+        # log.info("###执行买入操作")       
         # 执行买入操作
         if current_hold_size < g.target_num:
             if is_trade():
@@ -131,6 +127,7 @@ def handle_data(context, data):
         
 def calculate_etf_scores(market_data, lookback_window=63):
     """计算ETF评分"""
+    # log.info(f"lookback_window={lookback_window}")
     score_list = []
     valid_etfs = []
     
@@ -174,11 +171,13 @@ def calculate_etf_scores(market_data, lookback_window=63):
             # 综合评分（加入动量因子）
             momentum = df['close'].pct_change(21).iloc[-1]  # 1个月动量
             score = (risk_adjusted_return * r_squared) + (0.3 * momentum)
-            # log.info("momentum={},score={}".format(momentum,score))
+            # log.info("symbol={}, momentum={},score={}".format(symbol,momentum,score))
             #if symbol=='159509.SZ':
             #    print("算分:",x,y,slope, intercept, r_value)
+            
             valid_etfs.append(symbol)
-            score_list.append(float(score)) 
+            score_list.append(float(score))
+            
 
         except Exception as e:
             print("计算{}评分时出错: {}".format(symbol, str(e)))
@@ -191,8 +190,7 @@ def calculate_etf_scores(market_data, lookback_window=63):
     
     # 分数标准化
     df_score['score'] = (df_score['score'] - df_score['score'].mean()) / df_score['score'].std()
-    # 排序前过滤掉 score 低于 1.5 分的
-    df_score = df_score[df_score['score'] > 1.5]
+    # df_score = df_score[df_score['score'] > g.score_threshold]
     df_score = df_score.sort_values(by='score', ascending=False)
     return list(df_score.index) 
 
