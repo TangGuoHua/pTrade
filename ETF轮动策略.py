@@ -24,8 +24,8 @@ def initialize(context):
         '510880.SS',  # 上证红利ETF
         '513030.SS',  # 华安德国ETF
         '159857.SZ',  # 光伏ETF
-        '515050.SS',  # 5G通信ETF  
-        # '515880.SS',    ## 通信ETF 
+        # '515050.SS',  # 5G通信ETF  
+        '515880.SS',    ## 通信ETF 
         # '515980.SS',  ## AI ETF
         '162719.SZ',  # 石油LO
         '510300.SS',  # 沪深300
@@ -71,7 +71,7 @@ def handle_data(context, data):
     # 在指定时间点执行交易
     # log.info("###current_time=%s"%current_time)
     # if current_time in ['09:50']: 
-    if current_time in ['14:30']: 
+    if current_time in ['14:50']: 
         market_data = get_history(
             count=g.lookback_window,       # 回溯周期（全局变量）
             frequency=g.period_type,       # 数据频率（日/分钟）
@@ -131,6 +131,7 @@ def handle_data(context, data):
 def after_trading_end(context, data):
     log.info("盘后打印上次买入价")
     # print_holding_details(context, data)
+    log.info(get_positions())
     log.info(g.last_buy_prices)
     
 def calculate_etf_scores(market_data, lookback_window=63):
