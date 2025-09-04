@@ -47,8 +47,7 @@ def initialize(context):
         set_slippage(0.0002)  # 设置滑点为万分之二 0.0002
     # # 设置成交数量限制模式
         set_limit_mode(limit_mode='UNLIMITED')
-    # # 设置策略的可交易时间
-    # g.trade_flag = True
+
     print("pd.__version__: {}".format(pd.__version__)) 
     
 def handle_data(context, data):
@@ -68,11 +67,11 @@ def handle_data(context, data):
         holding_list.remove(symbol) # 从holding_list中移除止损的股票
         if symbol in g.last_buy_prices:
             del g.last_buy_prices[symbol]
-            
+
     # 在指定时间点执行交易
     # log.info("###current_time=%s"%current_time)
-    # if current_time in ['09:50']: 
-    if current_time in ['14:50']: 
+    if current_time in ['09:50']: 
+    # if current_time in ['14:50']: 
         market_data = get_history(
             count=g.lookback_window,       # 回溯周期（全局变量）
             frequency=g.period_type,       # 数据频率（日/分钟）
@@ -130,10 +129,30 @@ def handle_data(context, data):
                             g.last_buy_prices[symbol] = current_price
             
 def after_trading_end(context, data):
-    log.info("盘后打印上次买入价")
-    # print_holding_details(context, data)
-    log.info(get_positions())
-    log.info(g.last_buy_prices)
+
+    # try catch the exception
+    # to avoid the error stop the whole strategy
+    try:
+        log.info("盘后打印上次买入价")
+        # print_holding_details(context, data)
+        holdings = get_positions()
+        holding_list =  [p for p in holdings if holdings[p].amount > 0]
+        
+        if not holding_list:
+            log.info("当前无持仓")
+            return
+        
+        # print  each position details if amount > 0
+        for symbol in holding_list:
+            position = holdings[symbol]
+            if position.amount > 0:
+                log.info("持仓: %s, 数量: %d, 买入价： %.2f, 成本价: %.2f, 当前价: %.2f, 盈亏: %.2f%% " %
+                        (position.sid, position.amount,g.last_buy_prices[position.sid], position.cost_basis, position.last_sale_price, (position.last_sale_price - g.last_buy_prices[position.sid]) * 100/ (g.last_buy_prices[position.sid] if g.last_buy_prices[position.sid] != 0 else 1) ) )
+    # add empty line
+        log.info(" ")
+    except Exception as e:
+        log.error("after_trading_end error: %s" % str(e))
+        return
     
 def calculate_etf_scores(market_data, lookback_window=63):
     """计算ETF评分"""
