@@ -12,7 +12,7 @@ def initialize(context):
     g.target_num = 1  # 持仓数量
     g.stop_loss_pct = 0.02  # 止损比例
     g.score_threshold = 2.0 , #在下行趋势的时候加这个条件
-    g.total_cash = 400000 # 实盘时固定资金，回测时全仓
+    g.total_cash = 450000 # 实盘时固定资金，回测时全仓
     # 交易标的
     g.symbols = [
         '518880.SS',  # 黄金ETF
@@ -60,6 +60,7 @@ def handle_data(context, data):
     holding_list = [holdings[p].sid for p in holdings if holdings[p].amount > 0]
     # 检查止损
     stop_loss_list = check_stop_loss(context, holdings, data)
+    current_hold_size = len(holding_list)
     for symbol in stop_loss_list:
         order_target_value(symbol, 0) # 清空持仓
         print('止损卖出{}'.format(symbol))
@@ -78,7 +79,7 @@ def handle_data(context, data):
             field='close',                 # 获取收盘价
             security_list=g.symbols,       # 监控标的池
             fq='pre',                      # 前复权处理
-            include=False 
+            include=False                  # 修复未来函数问题
         )
         #print("market_data:%s" % market_data)
         if market_data is None or market_data.empty:
@@ -90,7 +91,7 @@ def handle_data(context, data):
         
         if latest_data is not None and not latest_data.empty:
             # market_data.iloc[-1] = latest_data.iloc[-1]
-            market_data = market_data.append(latest_data, ignore_index=False)
+            market_data = market_data.append(latest_data, ignore_index=False) # 修复未来函数问题
             # print("market_data 替换后:%s" % market_data)
             target_list = calculate_etf_scores(market_data)[:g.target_num]
             current_hold_size = len(holding_list)    
@@ -205,19 +206,22 @@ def calculate_etf_scores(market_data, lookback_window=63):
 
 def check_stop_loss(context, holdings, data):
     """检查止损条件"""
+    # log.info("检查止损条件")
     stop_loss_list = []
     for symbol, position in holdings.items():
-        if position.amount > 0 and symbol in g.last_buy_prices:
+        # log.info(f"当前symbol = {symbol};  当前持仓{position}")
+        if position.amount > 0 and position.sid in g.last_buy_prices:
             current_price = data[symbol]['close']
+            # log.info(f"当前价格 = {current_price}")
             if current_price > 0:
-                buy_price = g.last_buy_prices[symbol]
-                
+                buy_price = g.last_buy_prices[position.sid] # 修复止损问题
+                # log.info(f"上次买入价格 {buy_price}, 止损比例 {g.stop_loss_pct}, 止損價格：{buy_price * (1 - g.stop_loss_pct)} ")
                 if current_price < buy_price * (1 - g.stop_loss_pct):
-                    stop_loss_list.append(symbol)
+                    stop_loss_list.append(position.sid)
                     print('{}触发止损，买入价：{:.2f}，当前价：{:.2f}，止损比例：{:.2%}'.format(
-                        symbol, buy_price, current_price, g.stop_loss_pct))
+                        position.sid, buy_price, current_price, g.stop_loss_pct))
             else:
-                print('警告：无法获取{}的市场数据'.format(symbol))
+                print('警告：无法获取{}的市场数据'.format(position.sid))
     return stop_loss_list
 
 def risk_management(market_data, symbol):
