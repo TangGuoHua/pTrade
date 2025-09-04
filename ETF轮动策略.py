@@ -10,7 +10,7 @@ def initialize(context):
     g.period_type = '1d'  # 交易周期
     g.lookback_window = 251 # 回看窗口
     g.target_num = 1  # 持仓数量
-    g.stop_loss_pct = 0.02  # 止损比例
+    g.stop_loss_pct = 0.07  # 止损比例
     g.score_threshold = 2.0 , #在下行趋势的时候加这个条件
     g.total_cash = 450000 # 实盘时固定资金，回测时全仓
     # 交易标的
@@ -69,9 +69,16 @@ def handle_data(context, data):
             del g.last_buy_prices[symbol]
 
     # 在指定时间点执行交易
-    # log.info("###current_time=%s"%current_time)
-    if current_time in ['09:50']: 
-    # if current_time in ['14:50']: 
+    # log.info("###current_time=%s"%current_time)      
+    # if current_time in ['09:50']: 
+    if current_time in ['14:50']: 
+        
+        sh_result = is_maX_above_maY('000001.SS', 10, 20)
+        # log.info(f"相对关系 {sh_result}")
+        if sh_result is not None and sh_result==False:
+            print("上证指数10日均线在20日均线下方，暂停交易")
+            return
+        
         market_data = get_history(
             count=g.lookback_window,       # 回溯周期（全局变量）
             frequency=g.period_type,       # 数据频率（日/分钟）
@@ -127,7 +134,75 @@ def handle_data(context, data):
                             order_target_value(symbol, target_value) # 按金额买入
                             print('买入{}，金额：{:.2f}'.format(symbol, target_value))
                             g.last_buy_prices[symbol] = current_price
+
+
+
+def is_maX_above_maY(security, x_days, y_days):
+    """
+    判断指定标的的X日均线是否在Y日均线上方（结合get_trading_day接口规范）
+    """
+    try:
+        # 1. 参数校验
+        if not (isinstance(x_days, int) and isinstance(y_days, int) and x_days > 0 and y_days > 0):
+            log.error(f"参数错误：均线天数必须为正整数（X={x_days}, Y={y_days}）")
+            return None
+        
+        max_days = max(x_days, y_days)
+        # log.info(f"计算 {security} 的 {x_days}日/{y_days}日均线关系")
+        
+        # 2. 交易日期处理（严格遵循get_trading_day接口文档）
+        # 根据文档：day=0表示当前交易日（非交易日则返回下一交易日）
+        current_trading_day = get_trading_day(0)
+        # 转换为get_price接口要求的'YYYYMMDD'格式字符串
+        end_date_str = current_trading_day.strftime('%Y%m%d')
+        # log.info(f"当前交易日：{current_trading_day}，转换为接口日期格式：{end_date_str}")
+        
+        # 3. 调用get_price接口（参数组合符合文档要求）
+        hist_data = get_price(
+            security=security,
+            end_date=end_date_str,
+            frequency='1d',
+            fields=['close'],
+            count=max_days,  # 与end_date组合使用，不传入start_date
+            fq='pre'
+        )
+        
+        # 4. 数据有效性检查
+        if hist_data is None:
+            log.warning(f"接口返回空数据，可能标的代码错误或非交易日")
+            return None
             
+        if not isinstance(hist_data, pd.DataFrame) or hist_data.empty:
+            log.warning(f"返回数据格式错误或为空")
+            return None
+            
+        if 'close' not in hist_data.columns:
+            log.warning(f"返回数据不包含'close'字段")
+            return None
+            
+        # 文档说明get_price返回数据不包括当天，因此实际获取的是end_date前的count个交易日数据
+        if len(hist_data) < max_days:
+            log.warning(f"数据量不足：需要{max_days}个交易日，实际获取{len(hist_data)}个")
+            return None
+        
+        # 5. 计算均线并判断
+        ma_x = hist_data['close'].iloc[-x_days:].mean()
+        ma_y = hist_data['close'].iloc[-y_days:].mean()
+        
+        log.info(f"{x_days}日均线：{ma_x:.2f}，{y_days}日均线：{ma_y:.2f}")
+        return ma_x > ma_y
+    
+    except TypeError as e:
+        log.error(f"类型错误：{str(e)}")
+        return None
+    except KeyError as e:
+        log.error(f"数据字段错误：{str(e)}")
+        return None
+    except Exception as e:
+        log.error(f"均线判断失败：{str(e)}")
+        return None
+
+        
 def after_trading_end(context, data):
 
     # try catch the exception
@@ -139,7 +214,7 @@ def after_trading_end(context, data):
         holding_list =  [p for p in holdings if holdings[p].amount > 0]
         
         if not holding_list:
-            log.info("当前无持仓")
+            log.info("当前无持仓\n")
             return
         
         # print  each position details if amount > 0
