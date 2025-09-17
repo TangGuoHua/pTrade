@@ -12,7 +12,7 @@ def initialize(context):
     g.target_num = 1  # 持仓数量
     g.stop_loss_pct = 0.07  # 止损比例
     g.score_threshold = 2.0 , #在下行趋势的时候加这个条件
-    g.total_cash = 450000 # 实盘时固定资金，回测时全仓
+    g.total_cash = 200000 # 实盘时固定资金，回测时全仓
     # 交易标的
     g.symbols = [
         '518880.SS',  # 黄金ETF
@@ -24,9 +24,8 @@ def initialize(context):
         '510880.SS',  # 上证红利ETF
         '513030.SS',  # 华安德国ETF
         '159857.SZ',  # 光伏ETF
-        # '515050.SS',  # 5G通信ETF  
-        '515880.SS',    ## 通信ETF 
-        # '515980.SS',  ## AI ETF
+        '515880.SS',  ## 通信ETF 
+        '562700.SS',  # 汽车零部件
         '162719.SZ',  # 石油LO
         '510300.SS',  # 沪深300
         '159851.SZ']  # 金融科技
