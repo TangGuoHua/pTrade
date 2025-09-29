@@ -24,7 +24,7 @@ def initialize(context):
         '510880.SS',  # 上证红利ETF
         '513030.SS',  # 华安德国ETF
         '159857.SZ',  # 光伏ETF
-        '515880.SS',  ## 通信ETF 
+        '515880.SS',  # 通信ETF 
         '562700.SS',  # 汽车零部件
         '162719.SZ',  # 石油LO
         '510300.SS',  # 沪深300
@@ -101,7 +101,7 @@ def handle_data(context, data):
             target_list = calculate_etf_scores(market_data)[:g.target_num]
             current_hold_size = len(holding_list)    
         
-        # log.info("###执行卖出操作")
+        log.info("###执行卖出操作")
         # 执行卖出操作
         for symbol in holding_list:
             if symbol not in g.symbols: continue # 标的隔离
@@ -112,7 +112,7 @@ def handle_data(context, data):
                 if symbol in g.last_buy_prices:
                     del g.last_buy_prices[symbol]
                 
-        # log.info("###执行买入操作")       
+        log.info("###执行买入操作")       
         # 执行买入操作
         if current_hold_size < g.target_num:
             if is_trade():
@@ -120,7 +120,7 @@ def handle_data(context, data):
             else:
                 account = context.portfolio.cash
             
-            # log.info("account = %s" %account)            
+            log.info("account = %s" %account)            
             per_cash = account / (g.target_num - current_hold_size) * 0.999
             for symbol in target_list:
                 if symbol not in holding_list:
@@ -218,6 +218,7 @@ def after_trading_end(context, data):
         
         # print  each position details if amount > 0
         for symbol in holding_list:
+            if symbol not in g.symbols: continue # 标的隔离
             position = holdings[symbol]
             if position.amount > 0:
                 log.info("持仓: %s, 数量: %d, 买入价： %.2f, 成本价: %.2f, 当前价: %.2f, 盈亏: %.2f%% " %
@@ -230,7 +231,7 @@ def after_trading_end(context, data):
     
 def calculate_etf_scores(market_data, lookback_window=63):
     """计算ETF评分"""
-    # log.info(f"lookback_window={lookback_window}")
+    log.info(f"lookback_window={lookback_window}")
     score_list = []
     valid_etfs = []
     
@@ -293,8 +294,10 @@ def calculate_etf_scores(market_data, lookback_window=63):
     
     # 分数标准化
     df_score['score'] = (df_score['score'] - df_score['score'].mean()) / df_score['score'].std()
-    df_score = df_score[df_score['score'] > g.score_threshold]
     df_score = df_score.sort_values(by='score', ascending=False)
+    print("优化后评分结果:",df_score.head(40))
+    df_score = df_score[df_score['score'] > g.score_threshold]
+    log.info(f"分数超过 {g.score_threshold} 的标的数量是 {len(df_score)}")
     return list(df_score.index) 
 
 def check_stop_loss(context, holdings, data):
@@ -319,6 +322,7 @@ def check_stop_loss(context, holdings, data):
 
 def risk_management(market_data, symbol):
     """风险管理"""
+    log.info("风险管理")
     price_series = df = market_data[-21:]
     if len(price_series) < 20:
         return 1.0 # 数据不足时不调整
