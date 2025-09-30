@@ -210,7 +210,7 @@ def after_trading_end(context, data):
         log.info("盘后打印上次买入价")
         # print_holding_details(context, data)
         holdings = get_positions()
-        holding_list =  [p for p in holdings if holdings[p].amount > 0]
+        holding_list =  [holdings[p].sid for p in holdings if holdings[p].amount > 0]
         
         if not holding_list:
             log.info("当前无持仓\n")
