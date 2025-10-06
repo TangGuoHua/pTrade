@@ -14,10 +14,10 @@ def initialize(context):
     g.score_threshold = 2.0 , #在下行趋势的时候加这个条件
     g.total_cash = 200000 # 实盘时固定资金，回测时全仓
     # 交易标的
-    g.symbols = [
+    g.symbols =[
         '518880.SS',  # 黄金ETF
         '513100.SS',  # 纳指ETF
-        '512100.SS',  # 中证1000ETF
+        '510300.SS',  # 沪深300
         '513520.SS',  # 日经225ETF
         '513180.SS',  # 恒生科技指数ETF
         '512480.SS',  # 半导体ETF
@@ -25,11 +25,9 @@ def initialize(context):
         '513030.SS',  # 华安德国ETF
         '159857.SZ',  # 光伏ETF
         '515880.SS',  # 通信ETF 
-        '562700.SS',  # 汽车零部件
         '162719.SZ',  # 石油LO
-        '510300.SS',  # 沪深300
-        '159851.SZ']  # 金融科技
-        
+        '159851.SZ']  # 金融科技 
+
     # 状态变量
     g.positions = {}  # 当前持仓
     g.last_buy_prices = {}  # 买入价格记录
@@ -40,7 +38,7 @@ def initialize(context):
     
     if not is_trade():        
     # # 设置佣金费率
-        set_commission(0.0005)  # 设置佣金为万分之一
+        set_commission(0.0001)  # 设置佣金为万分之一
     
     # # 设置滑点
         set_slippage(0.0002)  # 设置滑点为万分之二 0.0002
@@ -78,6 +76,7 @@ def handle_data(context, data):
             print("上证指数10日均线在20日均线下方，暂停交易")
             return
         
+            
         market_data = get_history(
             count=g.lookback_window,       # 回溯周期（全局变量）
             frequency=g.period_type,       # 数据频率（日/分钟）
