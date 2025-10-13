@@ -53,7 +53,7 @@ def handle_data(context, data):
     current_time = context.blotter.current_dt.strftime('%H:%M')
     # 获取当前持仓
     holdings = get_positions()
-    holding_list = [holdings[p].sid for p in holdings if holdings[p].amount > 0]
+    holding_list = [holdings[p].sid for p in holdings if holdings[p].amount > 0 and holdings[p].sid in g.symbols]
     # 检查止损
     stop_loss_list = check_stop_loss(context, holdings, data)
     current_hold_size = len(holding_list)
@@ -209,8 +209,9 @@ def after_trading_end(context, data):
         log.info("盘后打印上次买入价")
         # print_holding_details(context, data)
         holdings = get_positions()
-        holding_list =  [holdings[p].sid for p in holdings if holdings[p].amount > 0]
-        
+        holding_list =  [holdings[p].sid for p in holdings if holdings[p].amount > 0 and holdings[p].sid in g.symbols]
+        print(holding_list)
+        print(len(holding_list))
         if not holding_list:
             log.info("当前无持仓\n")
             return
