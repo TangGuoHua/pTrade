@@ -10,9 +10,9 @@ def initialize(context):
     g.period_type = '1d'  # 交易周期
     g.lookback_window = 251 # 回看窗口
     g.target_num = 1  # 持仓数量
-    g.stop_loss_pct = 0.07  # 止损比例
+    g.stop_loss_pct = 0.05  # 止损比例
     g.score_threshold = 2.0 , #在下行趋势的时候加这个条件
-    g.total_cash = 200000 # 实盘时固定资金，回测时全仓
+    g.total_cash = 400000 # 实盘时固定资金，回测时全仓
     # 交易标的
     g.symbols =[
         '518880.SS',  # 黄金ETF
