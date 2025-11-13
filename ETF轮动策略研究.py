@@ -40,15 +40,34 @@ def get_data(code_list, start_date, end_date):
 # 计算动量
 def calculate_momentum(code_list, data, lookback=10):
     # 计算每日涨跌幅和N日涨跌幅
+    N=25
+    def calculate_score(srs, N=25):
+        if srs.shape[0] < N:
+            return np.nan
+        x = np.arange(1, N+1)
+        y = srs.values / srs.values[0] # 归一化价格序列
+        # 线性回归
+        lr = LinearRegression().fit(x.reshape(-1, 1), y)
+        # 斜率
+        slope = lr.coef_[0]
+        # 决定系数R2
+        r_squared = lr.score(x.reshape(-1, 1), y)
+        # 得分
+        score = 10000 * slope * r_squared
+        return score
     for code in code_list:
         data['日收益率_'+code] = data[code] / data[code].shift(1) - 1.0
-        data['涨幅_'+code] = data[code] / data[code].shift(lookback) - 1.0
+        # data['涨幅_'+code] = data[code] / data[code].shift(lookback) - 1.0
+        data['得分_'+code] = data[code].rolling(N).apply(lambda x: calculate_score(x, N))
+
     # 去掉缺失值
     data = data.dropna()
-    data[['涨幅_'+v for v in code_list]].head(10)
+    # data[['涨幅_'+v for v in code_list]].head(10)
+    data[['得分_'+v for v in code_list]].head(10)
 
     # 取出每日涨幅最大的证券
-    data['信号'] = data[['涨幅_'+v for v in code_list]].idxmax(axis=1).str.replace('涨幅_', '')
+    # data['信号'] = data[['涨幅_'+v for v in code_list]].idxmax(axis=1).str.replace('涨幅_', '')
+    data['信号'] = data[['得分_'+v for v in code_list]].idxmax(axis=1).str.replace('得分_', '')
     # 今日的涨幅由昨日的持仓产生
     data['信号'] = data['信号'].shift(1)
     data = data.dropna()
@@ -56,7 +75,7 @@ def calculate_momentum(code_list, data, lookback=10):
     # 第一天尾盘交易，当日涨幅不纳入
     data.loc[data.index[0],'轮动策略日收益率'] = 0.0
     data['轮动策略净值'] = (1.0 + data['轮动策略日收益率']).cumprod()
-    data[['涨幅_'+v for v in code_list]+['信号','轮动策略日收益率','轮动策略净值']].head(10)
+    data[['得分_'+v for v in code_list]+['信号','轮动策略日收益率','轮动策略净值']].head(10)
 
     
     return data
@@ -129,14 +148,14 @@ if __name__ == "__main__":
     data = pd.read_csv('etf_data2.csv', index_col=0, parse_dates=True)
 
     data = calculate_momentum(code_list, data, lookback=20)
-    # print(data.head(10))
-    # print(data.tail(10))
+    print(data.head(10))
+    print(data.tail(10))
 
     # 画图
-    drawPlot(data, code_list)
+    # drawPlot(data, code_list)
 
     # 生成报告
-    generateReport(data)
+    # generateReport(data)
 
     # data = pd.read_csv('D:\\Documents\\投资\\量化\\market_data2.csv', index_col=0, parse_dates=True)
     # # 为每一天计算当日均价， 当日均价=(开盘价 + 最高价 + 最低价 + 收盘价) / 4

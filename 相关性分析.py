@@ -189,13 +189,13 @@ def get_matrix_with_heatmap(etf_price_history_df, etf_name_list_df, sort_by_corr
 if __name__ == "__main__":
      # 模拟数据读取
     # 实际使用时请替换为：
-    etf_price_history_df = pd.read_csv('D:\\Documents\\投资\\量化\\market_data2.csv')
+    etf_price_history_df = pd.read_csv('.\\test\\data\\market_data20241013-20251013.csv')
     print(etf_price_history_df.head())
     # 把第一列名称改为'date'
     etf_price_history_df.rename(columns={etf_price_history_df.columns[0]: 'date'}, inplace=True)
     # etf_price_history_df['date'] = pd.to_datetime(etf_price_history_df['date'])
 
-    etf_name_list_df = pd.read_csv('D:\\Documents\\投资\\量化\\industry_df2.csv')
+    etf_name_list_df = pd.read_csv('.\\test\\data\\industry_df2.csv')
     # 如果etf_name_list_df 中的ts_code是以 .SH 结尾的把 .SH 替换为 .SS
     etf_name_list_df['ts_code'] = etf_name_list_df['ts_code'].str.replace('.SH', '.SS')
 
