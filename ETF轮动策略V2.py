@@ -199,9 +199,9 @@ def prepare_symbols():
         print("上证指数10日均线在20日均线下方")
         # 只保留宽基标的池
         g.symbols = g.broadIndexFund
-        g.score_threshold = -1  # 在下行趋势的时候加这个条件
+        g.score_threshold = 1  # 在下行趋势的时候加这个条件
         # return
-        g.stop_loss_pct=0.07
+        g.stop_loss_pct=0.05
     if is_maX_above_maY('000001.SS', 10, 20) and is_maX_above_maY('000001.SS', 20, 30)and is_maX_above_maY('000001.SS', 5, 10):
         print("上证指数10日均线在20日均线上方，继续交易")
         # 合并行业标的池
@@ -302,7 +302,7 @@ def after_trading_end(context, data):
             if symbol not in g.symbols: continue # 标的隔离
             position = holdings[symbol]
             if position.amount > 0:
-                log.info("持仓: %s, 数量: %d, 买入价： %.2f, 成本价: %.2f, 当前价: %.2f, 盈亏: %.2f%% " %
+                log.info("持仓: %s, 数量: %d, 买入价： %.4f, 成本价: %.4f, 当前价: %.4f, 盈亏: %.4f%% " %
                         (position.sid, position.amount,g.last_buy_prices[position.sid], position.cost_basis, position.last_sale_price, (position.last_sale_price - g.last_buy_prices[position.sid]) * 100/ (g.last_buy_prices[position.sid] if g.last_buy_prices[position.sid] != 0 else 1) ) )
     # add empty line
         log.info(" ")
