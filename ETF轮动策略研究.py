@@ -145,7 +145,7 @@ if __name__ == "__main__":
     # save to csv
     # data.to_csv('etf_data2.csv')
     # data = pd.read_csv('etf_data.csv', index_col=0, parse_dates=True)
-    data = pd.read_csv('etf_data2.csv', index_col=0, parse_dates=True)
+    data = pd.read_csv('./test/data/etf_data2.csv', index_col=0, parse_dates=True)
 
     data = calculate_momentum(code_list, data, lookback=20)
     print(data.head(10))

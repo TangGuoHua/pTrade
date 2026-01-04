@@ -3,7 +3,7 @@ import pandas as pd         # 数据处理核心库
 from datetime import datetime, timedelta  # Python标准日期时间库
 from scipy import stats     # 科学计算统计模块
 from sklearn.metrics import r2_score  # 机器学习评估指标
-
+import time
 # 初始化策略
 def initialize(context):
     # run_daily(context, ETF轮动策略, time='10:30')
@@ -12,7 +12,7 @@ def initialize(context):
     g.target_num = 1  # 持仓数量
     g.stop_loss_pct = 0.02  # 止损比例
     g.score_threshold = -1 , #在下行趋势的时候加这个条件
-    g.total_cash = 400000 # 实盘时固定资金，回测时全仓
+    g.total_cash = 300000 # 实盘时固定资金，回测时全仓
     # 宽基标的池
     g.broadIndexFund =[
         '518880.SS',  # 黄金ETF  , 商品          
@@ -64,12 +64,11 @@ def handle_data(context, data):
     stop_loss_list = check_stop_loss(context,  data)
     if stop_loss_list:
         print(f"止损标的列表: {stop_loss_list}")
-        clear_holdings(stop_loss_list)
+        clear_holdings(stop_loss_list, data)
   
     # 在指定时间点执行交易
     # log.info("###current_time=%s"%current_time)      
-    # if current_time in ['09:50']: 
-    if current_time in ['14:50']: 
+    if current_time in ['14:29']: 
         
         prepare_symbols()
         
@@ -79,13 +78,14 @@ def handle_data(context, data):
             # 执行卖出操作            
             to_be_clear_symbols = get_symbols_tobe_clear(target_list)             
             if to_be_clear_symbols:
-                clear_holdings(to_be_clear_symbols)
+                clear_holdings(to_be_clear_symbols, data)
             
-                  
+            if is_trade():
+                time.sleep(6)  # 等待6秒，确保数据更新      
    
             log.info("###执行买入操作")                      
             buy_stocks(context, data, market_data, target_list)            
-            # 执行买入操作
+            
             
 
 
@@ -105,15 +105,20 @@ def buy_stocks(context, data, market_data, target_list):
                 print("跳过止损标的 {}".format(symbol))
                 continue
             if symbol not in holding_list:
-                current_price = data[symbol]['close']
+                current_price = data[symbol]['price']
                 if current_price > 0:     
                     # 应用风险管理
                     risk_factor = risk_management(market_data[market_data['code'].isin([symbol])]['close'], symbol)
                     target_value = per_cash * risk_factor
                     if target_value > 0:
-                        order_target_value(symbol, target_value) # 按金额买入
+                        limit_price = current_price
+                        if is_trade():
+                            limit_price = get_snapshot(symbol)[symbol]['last_px']
+                            log.info("###symbol=%s, limit_price=%s"%(symbol,limit_price))
+                        limit_price = limit_price * 1.005  # 上浮0.5%买入
+                        order_target_value(symbol, target_value, limit_price=limit_price) # 按金额买入
                         print('买入{}，金额：{:.2f}'.format(symbol, target_value))
-                        g.last_buy_prices[symbol] = current_price
+                        g.last_buy_prices[symbol] = limit_price
                         
 def get_current_positions_list():
     try:
@@ -145,14 +150,19 @@ def get_symbols_tobe_clear(target_list):
         return []
         
  # 清空持仓函数
-def clear_holdings(stock_list_to_cleared):
+def clear_holdings(stock_list_to_cleared, data):
     
     try:
         for symbol in stock_list_to_cleared:
             #  标的隔离
             if symbol not in g.allFunds:
                 continue
-            order_target_value(symbol, 0) # 清空持仓
+            current_price = data[symbol]['price']
+            limit_price = current_price
+            if is_trade():
+                limit_price = get_snapshot(symbol)[symbol]['last_px']
+            limit_price = limit_price * (1-0.005)  # 下调0.5%卖出
+            order_target_value(symbol, 0, limit_price=limit_price) # 清空持仓
             g.stop_loss_list.append(symbol) # 记录止损标的
             print('卖出{}'.format(symbol))
             if symbol in g.last_buy_prices: # 删除买入价记录
