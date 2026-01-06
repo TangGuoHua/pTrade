@@ -6,12 +6,12 @@
 策略流程：
 盘前将中小板综成分股中st、停牌、退市的股票过滤得到股票池
 盘中换仓，始终持有当日流通市值最小的股票（涨停标的不换仓）。
+优化点：只卖出本策略买入的股票
 注意事项：
 策略中调用的order_target_value接口的使用有场景限制，回测可以正常使用，交易谨慎使用。
 回测场景下撮合是引擎计算的，因此成交之后持仓信息的更新是瞬时的，但交易场景下信息的更新依赖于柜台数据
 的返回，无法做到瞬时同步，可能造成重复下单。详细原因请看帮助文档。
 """
-
 
 # 初始化
 def initialize(context):
@@ -29,9 +29,12 @@ def initialize(context):
     
         # 设置滑点
         set_slippage(0.0002)  # 设置滑点为万分之二 0.0002
-        
+    
         # 设置成交数量限制模式
         set_limit_mode(limit_mode='UNLIMITED')
+    
+    # 新增：跟踪本策略买入的股票集合
+    g.strategy_stocks = set()
 
 
 # 盘前处理
@@ -58,11 +61,14 @@ def handle_data(context, data):
 
 # 交易函数
 def trade(context, buy_stocks):
-    # 卖出
-    for stock in context.portfolio.positions:
-        if stock not in buy_stocks:
+    # 卖出：只卖出本策略买入且不在买入列表中的股票
+    for stock in list(g.strategy_stocks):  # 使用list()避免遍历时修改集合
+        if stock in context.portfolio.positions and stock not in buy_stocks:
             order_target_value(stock, 0)
             log.info("sell:%s" % stock)
+            # 从策略股票集合中移除
+            g.strategy_stocks.remove(stock)
+    
     # 买入
     position_list = [position.sid for position in context.portfolio.positions.values()
                      if position.amount != 0]
@@ -72,6 +78,9 @@ def trade(context, buy_stocks):
         for stock in buy_stocks:
             if stock not in context.portfolio.positions:
                 order_target_value(stock, value)
+                # 新增：记录本策略买入的股票
+                g.strategy_stocks.add(stock)
+                log.info("buy:%s" % stock)
 
 
 # 获取买入股票池（涨停股不参与换仓）
@@ -92,3 +101,5 @@ def get_trade_stocks(context, data):
     check_out_lists = stocks[:count]
     check_out_lists = check_out_lists + hold_up_limit_stock
     return check_out_lists
+
+
