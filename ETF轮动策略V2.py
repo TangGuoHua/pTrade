@@ -30,7 +30,7 @@ def initialize(context):
         '512480.SS',  # 半导体ETF        
         '159857.SZ',  # 光伏ETF
         '515880.SS',  # 通信ETF 
-        '162719.SZ',  # 石油LO        
+        '162719.SZ',  # 石油LO     
         '159851.SZ'  # 金融科技 
     ]
     
@@ -44,6 +44,9 @@ def initialize(context):
     # set_benchmark(g.symbols[0])
     # set_universe(g.symbols)
     
+    g.sell_list = [] # 记录当日卖出单的 order_id
+    g.buy_list = []  # 记录当日买入单的 order_id 
+    
     if not is_trade():        
     # # 设置佣金费率
         set_commission(0.0001)  # 设置佣金为万分之一
@@ -54,7 +57,8 @@ def initialize(context):
         set_limit_mode(limit_mode='UNLIMITED')
 
     print("pd.__version__: {}".format(pd.__version__)) 
-    
+
+   
 def handle_data(context, data):
     # log.info("###crrent returns = %s "%(context.portfolio.portfolio_value))
     # 获取当前时间
@@ -80,15 +84,42 @@ def handle_data(context, data):
             if to_be_clear_symbols:
                 clear_holdings(to_be_clear_symbols, data)
             
-            if is_trade():
-                time.sleep(6)  # 等待6秒，确保数据更新      
+            # if is_trade():
+                # time.sleep(6)  # 等待6秒，确保数据更新      
    
-            log.info("###执行买入操作")                      
-            buy_stocks(context, data, market_data, target_list)            
-            
-            
+                        
 
+    if current_time in ['14:34']:
+        log.info(f"检查当日卖出单是否成交")
+        if len(g.sell_list) > 0:
+            
+            for order_id in g.sell_list:
+                ord = get_order(order_id)
+                if len(ord)> 0 and ord[0].status == '8':
+                    log.info(f"卖出单 {order_id}, 已经成交")                
+                else:
+                    log.info(f"卖出订单 {ord} 没有成交")                
+        else:
+            log.info("今天没有每日出单")  
+            
+    if current_time in ["14:39"]:
+        log.info("执行买入操作") 
+        market_data = getPrices()
+        if market_data is not None:
+            target_list = calculate_etf_scores(market_data)[:g.target_num]        
+            buy_stocks(context, data, market_data, target_list)
 
+    if current_time in ['14:42']:    
+        if len(g.buy_list) > 0:            
+            for order_id in g.buy_list:
+                ord = get_order(order_id)
+                if len(ord) > 0 and ord[0].status == '8':
+                    log.info(f"买入单 {order_id}, 已经成交")                
+                else:
+                    log.info(f"买入订单 {ord} 没有成交")
+        else:
+            log.info("今天没有买入单") 
+            
 def buy_stocks(context, data, market_data, target_list):
     holding_list = get_current_positions_list()
     current_hold_size =  len(holding_list)
@@ -98,28 +129,42 @@ def buy_stocks(context, data, market_data, target_list):
         else:
             account = context.portfolio.cash
         
-        log.info("account = %s" %account)            
-        per_cash = account / (g.target_num - current_hold_size) * 0.999
-        for symbol in target_list:
-            if symbol in g.stop_loss_list:
-                print("跳过止损标的 {}".format(symbol))
-                continue
-            if symbol not in holding_list:
-                current_price = data[symbol]['price']
-                if current_price > 0:     
-                    # 应用风险管理
-                    risk_factor = risk_management(market_data[market_data['code'].isin([symbol])]['close'], symbol)
-                    target_value = per_cash * risk_factor
-                    if target_value > 0:
-                        limit_price = current_price
-                        if is_trade():
-                            limit_price = get_snapshot(symbol)[symbol]['last_px']
-                            log.info("###symbol=%s, limit_price=%s"%(symbol,limit_price))
-                        limit_price = limit_price * 1.005  # 上浮0.5%买入
-                        order_target_value(symbol, target_value, limit_price=limit_price) # 按金额买入
-                        print('买入{}，金额：{:.2f}'.format(symbol, target_value))
-                        g.last_buy_prices[symbol] = limit_price
-                        
+        log.info("account = %s" %account)  
+        try:
+            per_cash = account / (g.target_num - current_hold_size) * 0.999
+            for symbol in target_list:
+                if symbol in g.stop_loss_list:
+                    print("跳过止损标的 {}".format(symbol))
+                    continue
+                if symbol not in holding_list:
+                    current_price = data[symbol]['price']
+                    if current_price > 0:     
+                        # 应用风险管理
+                        risk_factor = risk_management(market_data[market_data['code'].isin([symbol])]['close'], symbol)
+                        target_value = per_cash * risk_factor
+                        if target_value > 0:
+                            limit_price = current_price
+                            if is_trade():
+                                limit_price = get_snapshot(symbol)[symbol]['last_px']
+                                log.info(f"买入标的 {symbol} 时候的行情快照价 {limit_price}。")
+                            limit_price = limit_price * 1.005  # 上浮0.5%买入
+                            log.info(f"以上浮0.5%的限价 {limit_price} 买入标的 {symbol}")
+                            order_id = order_target_value(symbol, target_value, limit_price) # 按金额买入
+                            if order_id is None:
+                                log.error("买入失败！")
+                                raise ValueError(f"调用 order_target_value 买入时，未能获取 order_id")
+                            else:
+                                g.buy_list.append(order_id)
+                                buyInfo = '开仓买入{}，金额：{:.2f}'.format(symbol, target_value)
+                                log.info(buyInfo)
+                                g.last_buy_prices[symbol] = limit_price
+                                if is_trade():
+                                    send_email('15228207@qq.com', ['15228207@qq.com'], 'wrmmhpwuutdfcbcd', info=buyInfo,  subject="pTrade通知，开仓买入！！！")
+        except Exception as e:
+            log.error("买入失败: %s" % str(e))
+            if is_trade():
+                send_email('15228207@qq.com', ['15228207@qq.com'], 'wrmmhpwuutdfcbcd', info=f"买入标的{str(e)} 失败！！！",  subject="pTrade通知，策略执行失败！！！")
+            raise e               
 def get_current_positions_list():
     try:
         holdings = get_positions()
@@ -147,9 +192,15 @@ def get_symbols_tobe_clear(target_list):
         return tobe_clear
     except Exception as e:
         log.error("获取需要清仓的标的列表失败: %s" % str(e))
+        if is_trade():
+            send_email('15228207@qq.com', ['15228207@qq.com'], 'wrmmhpwuutdfcbcd', info=f"获取清仓标的 {str(e)} 失败！！！",  subject="pTrade通知，获取清仓标的失败！！！")
+        
         return []
         
  # 清空持仓函数
+ 
+ 
+# 清仓指定标的
 def clear_holdings(stock_list_to_cleared, data):
     
     try:
@@ -158,17 +209,30 @@ def clear_holdings(stock_list_to_cleared, data):
             if symbol not in g.allFunds:
                 continue
             current_price = data[symbol]['price']
+            log.info(f"current_price = {current_price} in clear_holdings()")
             limit_price = current_price
             if is_trade():
                 limit_price = get_snapshot(symbol)[symbol]['last_px']
-            limit_price = limit_price * (1-0.005)  # 下调0.5%卖出
-            order_target_value(symbol, 0, limit_price=limit_price) # 清空持仓
-            g.stop_loss_list.append(symbol) # 记录止损标的
-            print('卖出{}'.format(symbol))
-            if symbol in g.last_buy_prices: # 删除买入价记录
-                del g.last_buy_prices[symbol]
+                log.info(f"交易中的行情快照价格={limit_price}")
+            limit_price = limit_price * (1-0.005)  # 下调0.5%卖出            
+            log.info(f"以调整限价：{limit_price}, 清仓标的 {symbol}")
+            order_id = order_target_value(symbol, 0, limit_price) # 清空持仓
+            if order_id is None:
+                log.error("清仓失败！")
+                raise ValueError(f"调用 order_target_value 清仓时，未能获取 order_id")
+            else:
+                g.sell_list.append(order_id)
+                g.stop_loss_list.append(symbol) # 记录止损标的
+                sellInfo = f"卖出{symbol} 订单号 {order_id}"
+                log.info(sellInfo)
+                if symbol in g.last_buy_prices: # 删除买入价记录
+                    del g.last_buy_prices[symbol]
+                if is_trade():
+                    send_email('15228207@qq.com', ['15228207@qq.com'], 'wrmmhpwuutdfcbcd', info=sellInfo,  subject="pTrade通知，清仓{symbol}！")                
     except Exception as e:
         log.error("清空持仓失败: %s" % str(e))
+        if is_trade():
+            send_email('15228207@qq.com', ['15228207@qq.com'], 'wrmmhpwuutdfcbcd', info=f"清仓标的 {str(e)} 失败！！！",  subject="pTrade通知，策略执行失败！！！")
         raise e
         
 def getPrices():
@@ -295,8 +359,10 @@ def after_trading_end(context, data):
     try:
         print("盘后清空止损列表")
         g.stop_loss_list = []
+        g.sell_list=[]
+        g.buy_list = []
         
-        log.info("盘后打印上次买入价")
+        log.info("盘后打印持仓信息")
         # print_holding_details(context, data)
         holdings = get_positions()
         print(f"所有持仓 ： {holdings}")
@@ -386,7 +452,11 @@ def calculate_etf_scores(market_data, lookback_window=63):
     # 分数标准化
     df_score['score'] = (df_score['score'] - df_score['score'].mean()) / df_score['score'].std()
     df_score = df_score.sort_values(by='score', ascending=False)
+    
     print("优化后评分结果:",df_score.head(40))
+    if is_trade():
+        send_email('15228207@qq.com', ['15228207@qq.com'], 'wrmmhpwuutdfcbcd', info=f"今日评分 {df_score}！",  subject="pTrade通知，今日评分！！！")
+        
     df_score = df_score[df_score['score'] > g.score_threshold]
     log.info(f"分数超过 {g.score_threshold} 的标的数量是 {len(df_score)}")
     return list(df_score.index) 

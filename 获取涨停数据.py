@@ -7,7 +7,7 @@ from datetime import datetime
 # ===================== 请先配置你的 Tushare token =====================
 # 替换成你自己的 Tushare token
 
-ts.set_token("39becc95cd20ecf97c44f56230636951541859b80411a152f927e364")
+ts.set_token("")
 pro = ts.get_api()
 
 # ===================== 路径相关配置 =====================
