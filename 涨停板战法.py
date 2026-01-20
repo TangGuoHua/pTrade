@@ -5,7 +5,7 @@ import sxsc_tushare as sx
 from datetime import datetime, timedelta
 import random
 
-sx.set_token("XXXXXX")
+sx.set_token("")
 pro = sx.get_api(env="prd")
 
 '''
@@ -84,9 +84,9 @@ def initialize(context):
     context.portfolio.cash = g.config['initial_capital']
     
     # 设置多个触发时间：9:30和9:35进行买入，14:30进行卖出
-    run_daily(context, buy_event, time=g.config['buy_time1'])
-    run_daily(context, buy_event, time=g.config['buy_time2'])
-    run_daily(context, sell_event, time=g.config['sell_time'])
+    # run_daily(context, buy_event, time=g.config['buy_time1'])
+    # run_daily(context, buy_event, time=g.config['buy_time2'])
+    # run_daily(context, sell_event, time=g.config['sell_time'])
     
 def before_trading_start(context, data):
     # 更新股票池
@@ -304,7 +304,7 @@ def update_stock_pool(context):
 def buy_event(context):
     """买入事件处理函数，在9:30和9:35执行"""
     current_time = context.current_dt.time()
-    log.info(f'=== 买入事件触发，当前时间: {current_time} ===')
+    log.info(f'=== 买入事件触发，当前时间: {context.blotter.current_dt.strftime("%Y-%m-%d %H:%M:%S")} ===')
     
     # 获取账户总资产
     total_value = context.portfolio.total_value
@@ -414,7 +414,7 @@ def buy_event(context):
 def sell_event(context):
     """卖出事件处理函数，在14:30执行"""
     current_time = context.current_dt.time()
-    log.info(f'=== 卖出事件触发，当前时间: {current_time} ===')
+    log.info(f'=== 卖出事件触发，当前时间: {context.blotter.current_dt.strftime("%Y-%m-%d %H:%M:%S")} ===')
     
     # 获取账户总资产
     total_value = context.portfolio.total_value
@@ -632,7 +632,7 @@ def calculate_indicators(sec):
             return g.data_cache[cache_key]
         
         # 获取历史数据，考虑到机构控盘和多空底顶指标需要足够数据，我们获取61天数据足够
-        secData = get_history(61, '1d', ['close', 'open', 'high', 'low', 'volume'], sec, fq='pre', include=False)
+        secData = get_history(61, '1d', ['close', 'open', 'high', 'low', 'volume'], sec, fq='pre', include=True)
         
         if secData is None or len(secData) < 60:  # 确保有足够数据
             log.warning(f"获取{sec}的历史数据失败或数据不足")
@@ -1136,7 +1136,7 @@ def calculate_indicators(sec):
         
         # 缓存结果
         result = (buy_signals_count, sell_signals_count, buy_signals)
-        g.data_cache[cache_key] = result
+        # g.data_cache[cache_key] = result
         
         return result
     except Exception as e:
@@ -1144,4 +1144,15 @@ def calculate_indicators(sec):
         return 0, 0, {}
 
 def handle_data(context, data):
-    pass
+    # 获取当前时间（时分）
+    current_time = context.blotter.current_dt.time()
+    current_hour = current_time.hour
+    current_minute = current_time.minute
+    
+    # 1. 10点前（包含10:00）每分钟执行buy_event
+    if current_hour < 10 or (current_hour == 10 and current_minute == 0):
+        buy_event(context)
+    
+    # 2. 全天每分钟执行sell_event
+    sell_event(context)
+   
