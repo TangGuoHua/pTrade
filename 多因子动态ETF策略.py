@@ -3,18 +3,18 @@ import numpy as np
 from scipy.stats import linregress
 # define a dictionay g
 g = {}
-g['etf_pool'] =['159857.SZ',
-                '162719.SZ',
-                '510880.SS',
-                '512100.SS',
-                '512480.SS',
-                '513030.SS',
-                '513100.SS',
-                '513180.SS',
+g['etf_pool'] =['159857.SZ',    # 光伏ETF
+                '162719.SZ',    # 石油LO
+                '510880.SS',    # 上证红利ETF
+                '512100.SS',    # 中证1000ETF
+                '512480.SS',    # 半导体ETF
+                '513030.SS',    # 华安德国ETF
+                '513100.SS',    # 纳指ETF
+                '513180.SS',    # 恒生科技指数ETF
                 '513500.SS',
-                '513520.SS',
-                '515050.SS',
-                '518880.SS']
+                '513520.SS',    # 日经225ETF
+                '515050.SS',    # 5G通信ETF
+                '518880.SS']    # 黄金ETF
 def calculate_etf_score(df):
     """
     根据多因子动态ETF策略的评分逻辑计算ETF得分
