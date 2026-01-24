@@ -175,3 +175,4 @@ cython_debug/
 
 # Ignore the temp file
 temp.*
+config/local.json
