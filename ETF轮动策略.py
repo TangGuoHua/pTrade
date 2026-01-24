@@ -24,14 +24,21 @@ def initialize(context):
         '510880.SS',  # 上证红利ETF
         '513030.SS',  # 华安德国ETF
         '159857.SZ',  # 光伏ETF
-        '515880.SS',  # 通信ETF 
+
+        # '515050.SS',  # 5G通信ETF
+        '515880.SS',    ## 通信ETF 
+        # '515980.SS',  ## AI ETF
+
         '162719.SZ',  # 石油LO
         '159851.SZ']  # 金融科技 
 
     # 状态变量
     g.positions = {}  # 当前持仓
     g.last_buy_prices = {}  # 买入价格记录
-    
+
+    # 获取历史数据参数设置
+    g.hist_fq = "dypre"
+
     # # 设置基准和股票池
     # set_benchmark(g.symbols[0])
     # set_universe(g.symbols)
@@ -44,7 +51,8 @@ def initialize(context):
         set_slippage(0.0002)  # 设置滑点为万分之二 0.0002
     # # 设置成交数量限制模式
         set_limit_mode(limit_mode='UNLIMITED')
-
+    # # 设置策略的可交易时间
+    # g.trade_flag = True
     print("pd.__version__: {}".format(pd.__version__)) 
     
 def handle_data(context, data):
@@ -64,9 +72,9 @@ def handle_data(context, data):
         holding_list.remove(symbol) # 从holding_list中移除止损的股票
         if symbol in g.last_buy_prices:
             del g.last_buy_prices[symbol]
-
+            
     # 在指定时间点执行交易
-    # log.info("###current_time=%s"%current_time)      
+    # log.info("###current_time=%s"%current_time)
     # if current_time in ['09:50']: 
     if current_time in ['14:50']: 
         
@@ -82,7 +90,7 @@ def handle_data(context, data):
             frequency=g.period_type,       # 数据频率（日/分钟）
             field='close',                 # 获取收盘价
             security_list=g.symbols,       # 监控标的池
-            fq='pre',                      # 前复权处理
+            fq=g.hist_fq,                      # 前复权处理
             include=False                  # 修复未来函数问题
         )
         #print("market_data:%s" % market_data)
@@ -91,7 +99,7 @@ def handle_data(context, data):
         
         # log.info("###获取最近1分钟数据并替换最后一条")        
         # 获取最近1分钟数据并替换最后一条
-        latest_data = get_history(count=1,frequency='1m',field='close',security_list=g.symbols,fq='pre',include=True)
+        latest_data = get_history(count=1,frequency='1m',field='close',security_list=g.symbols,fq=g.hist_fq,include=True)
         
         if latest_data is not None and not latest_data.empty:
             # market_data.iloc[-1] = latest_data.iloc[-1]
@@ -114,10 +122,11 @@ def handle_data(context, data):
         log.info("###执行买入操作")       
         # 执行买入操作
         if current_hold_size < g.target_num:
+            real_cash = context.portfolio.cash
             if is_trade():
-                account = g.total_cash
+                account = g.total_cash if 0 < g.total_cash <= real_cash else real_cash
             else:
-                account = context.portfolio.cash
+                account = real_cash
             
             log.info("account = %s" %account)            
             per_cash = account / (g.target_num - current_hold_size) * 0.999
@@ -162,7 +171,7 @@ def is_maX_above_maY(security, x_days, y_days):
             frequency='1d',
             fields=['close'],
             count=max_days,  # 与end_date组合使用，不传入start_date
-            fq='pre'
+            fq=g.hist_fq
         )
         
         # 4. 数据有效性检查
@@ -202,7 +211,6 @@ def is_maX_above_maY(security, x_days, y_days):
 
         
 def after_trading_end(context, data):
-
     # try catch the exception
     # to avoid the error stop the whole strategy
     try:
@@ -311,7 +319,7 @@ def check_stop_loss(context, holdings, data):
             # log.info(f"当前价格 = {current_price}")
             if current_price > 0:
                 buy_price = g.last_buy_prices[position.sid] # 修复止损问题
-                # log.info(f"上次买入价格 {buy_price}, 止损比例 {g.stop_loss_pct}, 止損價格：{buy_price * (1 - g.stop_loss_pct)} ")
+                # log.info(f"上次买入价格 {buy_price}, 止损比例 {g.stop_loss_pct}, 止损价格：{buy_price * (1 - g.stop_loss_pct)} ")
                 if current_price < buy_price * (1 - g.stop_loss_pct):
                     stop_loss_list.append(position.sid)
                     print('{}触发止损，买入价：{:.2f}，当前价：{:.2f}，止损比例：{:.2%}'.format(

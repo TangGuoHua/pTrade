@@ -9,18 +9,21 @@ ETF RSI震荡交易策略：使用特定ETF列表交易
 def initialize(context):
     # 使用固定ETF列表代替选股逻辑
     context.stock_list = [
-        '513360.SS',  # 示例ETF代码
-        '159985.SZ',
-        '513310.SS',
-        '518880.SS',
-        '513060.SS',
-        '513120.SS',
-        '513010.SS',
-        '159740.SZ',
-        '511380.SS',
-        '513330.SS',
-        '513130.SS',
-        '513090.SS'
+        '513360.SS',  # 示例ETF代码, 教育ETF
+        '159985.SZ',    # 豆粕ETF
+        '513310.SS',    # 中韩芯片
+        '518880.SS',    # 黄金ETF
+        '513060.SS',    # 恒生医疗
+        '513120.SS',    # HK创新药
+        '513010.SS',    # 港股科技
+        '159740.SZ',    # 恒生科技
+        '511380.SS',    # 转债 ETF
+        '513330.SS',    # 恒生互联
+        '513130.SS',    # 恒生科技
+        '515050.SS',    # 5G通信ETF
+        '515880.SS',  ## 通信ETF
+        '515980.SS',  ## AI ETF
+        '513090.SS'     # 香港证券
     ]
     
     # 设置股票池
@@ -72,6 +75,9 @@ def initialize(context):
     # 缓存数据
     context.data_cache = {}
     context.last_filter_day = None
+
+    # 获取历史数据参数设置
+    g.hist_fq = "dypre"
 
 
 def before_trading_start(context, data):
@@ -334,7 +340,7 @@ def handle_data(context, data):
                     current_price = data[stock].close
                 else:
                     # 使用历史数据获取价格
-                    price_data = get_history(1, '1d', 'close', stock)
+                    price_data = get_history(1, '1d', 'close', stock, fq=g.hist_fq)
                     if price_data is None or price_data.empty:
                         continue
                     current_price = price_data.iloc[-1]['close']
@@ -349,7 +355,7 @@ def handle_data(context, data):
                     continue
                 
                 # 获取历史数据计算指标
-                hist_data = get_history(60, '1d', field=['close', 'high', 'low'], security_list=stock)
+                hist_data = get_history(60, '1d', field=['close', 'high', 'low'], security_list=stock, fq=g.hist_fq)
                 if hist_data is None or hist_data.empty:
                     continue
                 
@@ -413,7 +419,7 @@ def handle_data(context, data):
                 current_volume = data[stock].volume if hasattr(data[stock], 'volume') else 0
             else:
                 # 使用历史数据
-                price_data = get_history(1, '1d', ['close', 'volume'], stock)
+                price_data = get_history(1, '1d', ['close', 'volume'], stock, fq=g.hist_fq)
                 if price_data is None or price_data.empty:
                     continue
                 current_price = price_data['close'].iloc[-1]
@@ -464,7 +470,7 @@ def handle_data(context, data):
                 stock_data['max_profit_pct'] = profit_pct
             
             # 获取历史数据计算技术指标
-            hist_data = get_history(60, '1d', field=['close', 'high', 'low'], security_list=stock)
+            hist_data = get_history(60, '1d', field=['close', 'high', 'low'], security_list=stock, fq=g.hist_fq)
             if hist_data is None or hist_data.empty:
                 continue
             
