@@ -26,7 +26,8 @@ def get_research_path():
 
 # 定义 CSV 文件路径
 # limit_up_csv_path = f"{get_research_path()}csv/limit_up.csv"
-limit_up_csv_path = f"./test/data/limit_up.csv"
+
+limit_up_csv_path = ""
 
 def get_trading_dates(year=2025):
     """获取指定年份的所有交易日列表"""
@@ -129,11 +130,25 @@ def save_limit_up_data(year=2025):
 if __name__ == "__main__":
     # 执行数据获取和保存
     # print api_key
-    print(f"Using Tushare API Key: {api_key}")
-    print("开始获取并保存2025年涨停数据...")
-    # save_limit_up_data(2025)
-    # # read csv from limit_up_csv_path and set the first column as index
-    # df = pd.read_csv(limit_up_csv_path, index_col=0)
-    # print(df.head())
-    # # print index of df
-    # print(df.index)
+    # print(f"Using Tushare API Key: {api_key}")
+    # year = 2021
+    # limit_up_csv_path = f"./test/data/limit_up_{year}.csv"
+    # print(limit_up_csv_path)
+    # save_limit_up_data(year)
+
+    # 读取 目录./test/data/ 下面文件名以limit_up 开头的csv 文件到一个dataframe中
+    # csv 文件的第一列是日期，索引是默认索引
+
+    import glob
+    all_files = glob.glob("./test/data/limit_up_*.csv")
+    df_list = []
+    for file in all_files:
+        df = pd.read_csv(file, index_col=0)
+        df_list.append(df)
+    combined_df = pd.concat(df_list)
+    print(f"合并后的数据总记录数: {len(combined_df)}")
+    print(combined_df.index)
+    print(combined_df.head())
+    print(combined_df.tail())
+
+    

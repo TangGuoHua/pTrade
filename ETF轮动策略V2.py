@@ -10,7 +10,7 @@ def initialize(context):
     g.period_type = '1d'  # 交易周期
     g.lookback_window = 251 # 回看窗口
     g.target_num = 1  # 持仓数量
-    g.stop_loss_pct = 0.02  # 止损比例
+    g.stop_loss_pct = 0.05  # 止损比例
     g.score_threshold = -1 , #在下行趋势的时候加这个条件
     g.total_cash = 300000 # 实盘时固定资金，回测时全仓
     # 宽基标的池
@@ -100,7 +100,7 @@ def handle_data(context, data):
                 else:
                     log.info(f"卖出订单 {ord} 没有成交")                
         else:
-            log.info("今天没有每日出单")  
+            log.info("今天没有卖出单")  
             
     if current_time in ["14:39"]:
         log.info("执行买入操作") 
@@ -228,7 +228,7 @@ def clear_holdings(stock_list_to_cleared, data):
                 if symbol in g.last_buy_prices: # 删除买入价记录
                     del g.last_buy_prices[symbol]
                 if is_trade():
-                    send_email('15228207@qq.com', ['15228207@qq.com'], 'wrmmhpwuutdfcbcd', info=sellInfo,  subject="pTrade通知，清仓{symbol}！")                
+                    send_email('15228207@qq.com', ['15228207@qq.com'], 'wrmmhpwuutdfcbcd', info=sellInfo,  subject=f"pTrade通知，清仓{symbol}！")                
     except Exception as e:
         log.error("清空持仓失败: %s" % str(e))
         if is_trade():
