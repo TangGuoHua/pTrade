@@ -11,7 +11,7 @@ def initialize(context):
     g.lookback_window = 251 # 回看窗口
     g.target_num = 1  # 持仓数量
     g.stop_loss_pct = 0.05  # 止损比例
-    g.score_threshold = -1 , #在下行趋势的时候加这个条件
+    g.score_threshold = 1 , #在下行趋势的时候加这个条件
     g.total_cash = 300000 # 实盘时固定资金，回测时全仓
     # 宽基标的池
     g.broadIndexFund =[
@@ -72,7 +72,7 @@ def handle_data(context, data):
   
     # 在指定时间点执行交易
     # log.info("###current_time=%s"%current_time)      
-    if current_time in ['14:29']: 
+    if current_time in ['14:20']: 
         
         prepare_symbols()
         
@@ -86,10 +86,8 @@ def handle_data(context, data):
             
             # if is_trade():
                 # time.sleep(6)  # 等待6秒，确保数据更新      
-   
-                        
-
-    if current_time in ['14:34']:
+                          
+    if current_time in ['14:23']:
         log.info(f"检查当日卖出单是否成交")
         if len(g.sell_list) > 0:
             
@@ -102,14 +100,14 @@ def handle_data(context, data):
         else:
             log.info("今天没有卖出单")  
             
-    if current_time in ["14:39"]:
+    if current_time in ["14:29"]:
         log.info("执行买入操作") 
         market_data = getPrices()
         if market_data is not None:
             target_list = calculate_etf_scores(market_data)[:g.target_num]        
             buy_stocks(context, data, market_data, target_list)
 
-    if current_time in ['14:42']:    
+    if current_time in ['14:33']:    
         if len(g.buy_list) > 0:            
             for order_id in g.buy_list:
                 ord = get_order(order_id)
@@ -128,7 +126,7 @@ def buy_stocks(context, data, market_data, target_list):
             account = g.total_cash
         else:
             account = context.portfolio.cash
-        
+            # account = g.total_cash
         log.info("account = %s" %account)  
         try:
             per_cash = account / (g.target_num - current_hold_size) * 0.999
@@ -223,7 +221,7 @@ def clear_holdings(stock_list_to_cleared, data):
             else:
                 g.sell_list.append(order_id)
                 g.stop_loss_list.append(symbol) # 记录止损标的
-                sellInfo = f"卖出{symbol} 订单号 {order_id}"
+                sellInfo = f"卖出{symbol} 订单号 {order_id}\n"
                 log.info(sellInfo)
                 if symbol in g.last_buy_prices: # 删除买入价记录
                     del g.last_buy_prices[symbol]
@@ -270,21 +268,22 @@ def prepare_symbols():
     sh_result = is_maX_above_maY('000001.SS', 10, 20)
     # log.info(f"相对关系 {sh_result}")
     if sh_result is not None and sh_result==False:
-        print("上证指数10日均线在20日均线下方")
+        print("弱势行情10<20, 控制风险，只操作宽基")
         # 只保留宽基标的池
         g.symbols = g.broadIndexFund
         g.score_threshold = 1  # 在下行趋势的时候加这个条件
-        # return
         g.stop_loss_pct=0.05
     if is_maX_above_maY('000001.SS', 10, 20) and is_maX_above_maY('000001.SS', 20, 30)and is_maX_above_maY('000001.SS', 5, 10):
-        print("上证指数10日均线在20日均线上方，继续交易")
+        print("强势行情 5>10>20>30，继续交易")
         # 合并行业标的池
         g.symbols = g.symbols + g.a_industry
         g.score_threshold = 2  # 在上行趋势的时候放宽条件
         # 去除重复标的
+        # g.stop_loss_pct=0.02
         g.symbols = list(set(g.symbols))
+ 
+    print(f"当前标的池: {g.symbols}, g.stop_loss_pct={g.stop_loss_pct}, g.score_threshold={g.score_threshold}") 
     
-    print("当前标的池: {}".format(g.symbols)) 
     
 def is_maX_above_maY(security, x_days, y_days):
     """
@@ -455,7 +454,7 @@ def calculate_etf_scores(market_data, lookback_window=63):
     
     print("优化后评分结果:",df_score.head(40))
     if is_trade():
-        send_email('15228207@qq.com', ['15228207@qq.com'], 'wrmmhpwuutdfcbcd', info=f"今日评分 {df_score}！",  subject="pTrade通知，今日评分！！！")
+        send_email('15228207@qq.com', ['15228207@qq.com'], 'wrmmhpwuutdfcbcd', info=f"今日评分 \n {df_score}！\n",  subject="pTrade通知，今日评分！！！")
         
     df_score = df_score[df_score['score'] > g.score_threshold]
     log.info(f"分数超过 {g.score_threshold} 的标的数量是 {len(df_score)}")
@@ -488,32 +487,60 @@ def check_stop_loss(context, data):
             else:
                 print('警告：无法获取{}的市场数据'.format(position.sid))
     return stop_loss_list
-
 def risk_management(market_data, symbol):
-    """风险管理"""
-    log.info("风险管理")
-    price_series = df = market_data[-11:]
-    history_price_series = market_data[-201:]
-    if len(price_series) < 10:
-        return 1.0 # 数据不足时不调整
-    # 计算波动率
-    returns = price_series.pct_change().dropna()
-    
-    current_vol = returns[-10:].std()
-    hist_vol = history_price_series.std()
-    # 波动率突破检查
-    vol_ratio = current_vol / hist_vol
+    """
+    风险管理：计算近20天波动率/过去200天波动率的比值，结合波动率突破、最大回撤做仓位调整
+    :param market_data: get_history返回的DataFrame，含datetime索引、code、close列
+    :param symbol: 标的代码（如162719.SZ）
+    :return: 仓位调整系数（0-1.0）
+    """
+    print("开始执行风险管理计算")
+    # 核心适配：提取收盘价列，重置索引避免时间索引切片问题，仅保留数值做计算
+    close_series = market_data.copy()
+    # 近20天收盘价（取最后20条，若不足20天则返回默认系数）
+    price_20d = close_series.tail(20)
+    # 过去200天收盘价（取倒数201到倒数21条，和近20天无重叠，纯历史区间）
+    price_200d = close_series.iloc[-200:-20] if len(close_series)>=201 else close_series.head(len(close_series)-20)
+
+    # 数据有效性校验：20天和200天数据均需至少10条，否则不调整仓位
+    if len(price_20d) < 10 or len(price_200d) < 10:
+        log.warning(f"标的{symbol}数据不足，20天数据量：{len(price_20d)}，200天数据量：{len(price_200d)}")
+        return 1.0
+
+    # 计算日收益率（涨跌幅），dropna删除空值（第一条无涨跌幅）
+    ret_20d = price_20d.pct_change(fill_method=None).dropna()
+    ret_200d = price_200d.pct_change(fill_method=None).dropna()
+
+    # 计算波动率：日收益率的标准差（金融中波动率的标准计算方式）
+    vol_20d = ret_20d.std()  # 近20天波动率
+    vol_200d = ret_200d.std()# 过去200天波动率
+
+    # 避免除零错误：若历史波动率为0，返回默认系数
+    if vol_200d == 0:
+        log.warning(f"标的{symbol}过去200天波动率为0，无波动")
+        return 1.0
+
+    # 计算波动率比值：近20天 / 过去200天
+    vol_ratio = vol_20d / vol_200d
+    print(f"symbol={symbol}, 近20天波动率={vol_20d:.6f}, 过去200天波动率={vol_200d:.6f}, 波动率比值={vol_ratio:.4f}")
+
+    # 波动率突破检查：根据比值调整仓位
     if vol_ratio > 3.0:
-        print("波动率突破 {}: {:.2f}".format(symbol, vol_ratio))
+        print(f"波动率突破3倍阈值 {symbol}: {vol_ratio:.2f}")
         return 0.5
     if vol_ratio > 1.5:
-        print("波动率突破 {}: {:.2f}".format(symbol, vol_ratio))
+        print(f"波动率突破1.5倍阈值 {symbol}: {vol_ratio:.2f}")
         return 0.8
 
-    # 最大回撤检查
-    rolling_max = price_series.expanding().max()
-    drawdown = (price_series - rolling_max) / rolling_max
-    if drawdown.min() < -0.1:
-        print("触发最大回撤限制 {}".format(symbol))
-        return 0
+    # 最大回撤检查：基于近20天收盘价，回撤超10%则清仓
+    rolling_max = close_series.tail(10).expanding().max()  # 20天内的滚动最高价
+    drawdown = (close_series.tail(10) - rolling_max) / rolling_max  # 累计回撤
+    max_drawdown = drawdown.min()
+    if max_drawdown < -0.1:
+        print(f"触发最大回撤10%限制 {symbol}，最大回撤：{max_drawdown:.2%}")
+        return 0.0
+
+    # 无异常则返回满仓系数
     return 1.0
+    
+ 
